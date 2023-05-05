@@ -9,6 +9,8 @@ import serial
 import openpyxl
 import datetime
 import time
+import threading
+
 
 VERILOG_GENERATION_FILES_PATH = r"Verilog_Generators/"
 QORC_SDK_PATH = r"/home/joris/Uni/Scriptie/qorc_sdk/"
@@ -30,6 +32,8 @@ def parseArguments():
                           help="Specify the filename of the verilog generator, located in Verilog_Generators/")
    argParser.add_argument("-c", "--circuitCount", required=True,
                           help="Specify the amount of circuits to generate")
+   argParser.add_argument("-i", "--increment", required=True,
+                          help="Amount to incrament the circuits by")
    argParser.add_argument("-l", "--testLength", required=True,
                           help="Specify the length of the power tests")
    argParser.add_argument("-d", "--delay", required=True, 
@@ -49,7 +53,6 @@ def printError(errno: int):
       print("Error in flashing board!")
    elif (errno == 6):
       print("Error in power test!")
-
    exit(errno)
 
 # Runs the specified generator, located in VERILOG_GENERATION_FILES_PATH
@@ -58,7 +61,7 @@ def runGenerator(filePath: os.path, circuitCount: int):
    filePath = os.path.join("./", filePath)
    # Run the bash generator script
    val = subprocess.check_call("{} {} {}".format(filePath, circuitCount, 
-                               FPGA_FILE_PATH), shell=True)
+                               FPGA_FILE_PATH), shell=True, stdout=subprocess.DEVNULL)
    
    if (val == 0): return True
    else: return False
@@ -85,7 +88,8 @@ def enableProgrammingMode(ser: serial.Serial):
 
 # Compiles the QT_APP using make -C
 def compileProgram():
-   val = subprocess.check_call("make -C {}".format(QT_APP_DIR), shell=True)
+   val = subprocess.check_call("make -C {}".format(QT_APP_DIR), shell=True, 
+                               stdout=subprocess.DEVNULL)
    if (val == 0): return True
    else: return False
 
@@ -105,6 +109,7 @@ def checkSerConnection(ser: serial.Serial):
 
 # Start Serial connection
 def startSerial(comPort: str):
+   print("Starting Serial...")
    ser = serial.Serial(comPort)
    if (ser.name != comPort): return False
    # Test connection
@@ -116,6 +121,7 @@ def startSerial(comPort: str):
 # comPort: port which is connected to the uC for controlling the QT+
 # QORC_PORT: port to which the QT+ is connected for transferring data
 def flashBoard(ser, QORC_PORT: str, ):
+   print("Putting QT+ into programming mode")
    if not enableProgrammingMode(ser): 
       printError(4)
    # Setting the QORC_PORT in the environment
@@ -123,7 +129,9 @@ def flashBoard(ser, QORC_PORT: str, ):
    # Wait for COM Port to show up
    time.sleep(8)
    # Using make flash
-   val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), shell=True)
+   print("Flashing...")
+   val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), shell=True,
+                               stdout=subprocess.DEVNULL)
    if (val == 0): return True
    else: return False
 
@@ -157,6 +165,8 @@ def outputToCsv(sheetName: str, measurements: list):
    measurements = measurements.split(';')
    # Remove index containing 'END' keyword
    del measurements[-1]
+   # Check if there are measurement
+   print(measurements)
    # Keep track of averages
    averageV = 0
    averagemA = 0
@@ -192,25 +202,55 @@ def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, outName
    print("Starting power tests with length: {}, delay: {}".format(testLength, betweenTime))
    # Receive all the data and chop up into individual measurements
    measurements = ser.read_until(expected=b"END").decode("UTF-8")
-   ser.close()
    print("Done! Outputting to CSV...")
    # Output to CSV file
    outputToCsv(outName + "_" + str(circuitCount), measurements)
    return True
 
-if __name__ == '__main__':
-   args = parseArguments()
-   for i in range(0, int(args.circuitCount), 5):
+def generateAndCompile(generator, i):
+   print("Generating {} with {} circuits".format(generator, i))
+   if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, generator), i):
+      printError(1)
+   
+   print("Compiling...")
+   if not compileProgram():
+      printError(2)
+
+def mainLoop(args, makeThread):
+   for i in range(int(args.increment) + int(args.increment), int(args.circuitCount), int(args.increment)):
       print("Running {}".format(i))
-      # if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, args.generator), i):
-      #    printError(1)
-      # if not compileProgram():
-      #    printError(2)
-      ser = startSerial(args.comPort)
-      if (ser == False):
-         printError(3)
-      # if not flashBoard(ser, args.QORC_PORT):
-      #    printError(5)
-      # Wait for COM port to show up
+      if makeThread.isAlive():
+         print("Waiting for next program to compile!")
+         while(makeThread.isAlive()): 
+            time.sleep(5)
+      if not flashBoard(ser, args.QORC_PORT):
+         printError(5)
+      ### Build the next program in the background ###
+      makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, i), daemon=True)
+      makeThread.start()
+      ### Test the currently flashed program ###
       if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
          printError(6)
+
+if __name__ == '__main__':
+   args = parseArguments()
+   # Run the first compile outside of the loop
+   generateAndCompile(args.generator, 0)
+   # Start serial and flash the first program
+   ser = startSerial(args.comPort)
+   if (ser == False):
+      printError(3)
+   if not flashBoard(ser, args.QORC_PORT):
+      printError(5)
+   ### Build the next program in the background ###
+   makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, args.increment), daemon=True)
+   makeThread.start()
+   ### Test the currently flashed program ###
+   if not runPowerTests(ser, args.testLength, args.delay, args.generator, 0):
+      printError(6)
+   
+   try: 
+      mainLoop(args, makeThread)
+   except Exception as e:
+      print("EXCEPTION: {}".format(e))
+      exit(-1)
