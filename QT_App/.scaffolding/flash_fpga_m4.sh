@@ -111,19 +111,19 @@ if [ -f "$PROJECT_FPGA_DESIGN_BIN" ] && [ -f "$PROJECT_M4_BIN" ] ; then
     # both fpga bin and m4 bin are produced in this project, so mode=fpga-m4
     printf "\nrunning command:\n"
     printf "qfprog --port $PORT --m4app $PROJECT_M4_BIN --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga-m4 --reset\n\n"
-    COMMAND="python ../../TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --m4app "$PROJECT_M4_BIN" --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga-m4 --reset"
+    COMMAND="python ../../qorc-sdk/TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --m4app "$PROJECT_M4_BIN" --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga-m4 --reset"
     powershell.exe "$COMMAND"
 elif [ -f "$PROJECT_FPGA_DESIGN_BIN" ] ; then
     # only fpga bin is produced, so mode=fpga
     printf "\nrunning command:\n"
     printf "qfprog --port $PORT --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga --reset\n\n"
-    COMMAND="python ../../TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga --reset"
+    COMMAND="python ../../qorc-sdk/TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --appfpga $PROJECT_FPGA_DESIGN_BIN --mode fpga --reset"
     powershell.exe "$COMMAND"
 elif [ -f "$PROJECT_M4_BIN" ] ; then
     # only m4 bin is produced, so mode=m4
     printf "\nrunning command:\n"
     printf "qfprog --port $PORT --m4app $PROJECT_M4_BIN--mode m4 --reset\n\n"
-    COMMAND="python ../../TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --m4app "$PROJECT_M4_BIN" --mode m4 --reset"
+    COMMAND="python ../../qorc-sdk/TinyFPGA-Programmer-Application/tinyfpga-programmer-gui.py --port "$PORT" --m4app "$PROJECT_M4_BIN" --mode m4 --reset"
     powershell.exe "$COMMAND"
 else
     printf "\nshould not reach here!\n"

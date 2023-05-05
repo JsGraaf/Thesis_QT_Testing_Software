@@ -6,30 +6,31 @@ import argparse
 import subprocess
 import os
 import serial
-import xlsxwriter
+import openpyxl
 import datetime
+import time
 
 VERILOG_GENERATION_FILES_PATH = r"Verilog_Generators/"
 QORC_SDK_PATH = r"/home/joris/Uni/Scriptie/qorc_sdk/"
 QT_APP_DIR = r"QT_App"
 QT_APP_PATH = r"QT_App/fpga/rtl/"
 FPGA_FILE_PATH = os.path.join(QT_APP_PATH, "MODULE_top.v")
-OUTPUT_DIR = r"Output"
+OUTPUT_DIR = r"./"
 OUTPUT_FILE = r"Power_Test_Output.xlsx"
 
 HEADERS = ["Voltage(V)", "Amperage(A)", "Wattage(mW)"]
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
-   argParser.add_argument("-q", "--QORC_PORT", required=False,
+   argParser.add_argument("-q", "--QORC_PORT", required=True,
                           help="Specify the serial port to which the QT+ is connected in programming mode")
-   argParser.add_argument("-p", "--comPort", required=False,
+   argParser.add_argument("-p", "--comPort", required=True,
                           help="Specify the serial port to which the controller uC with INA219 is connected")
-   argParser.add_argument("-g", "--generator", required=False,
+   argParser.add_argument("-g", "--generator", required=True,
                           help="Specify the filename of the verilog generator, located in Verilog_Generators/")
-   argParser.add_argument("-c", "--circuitCount", required=False,
+   argParser.add_argument("-c", "--circuitCount", required=True,
                           help="Specify the amount of circuits to generate")
-   argParser.add_argument("-l", "--testLength", required=False,
+   argParser.add_argument("-l", "--testLength", required=True,
                           help="Specify the length of the power tests")
    argParser.add_argument("-d", "--delay", required=True, 
                           help="Specify delay between measurements")
@@ -39,9 +40,15 @@ def printError(errno: int):
    if (errno == 1):
       print("Error in generator execution!")
    elif (errno == 2):
-      print("Error in executing make")
+      print("Error in executing make!")
    elif (errno == 3):
+      print("Error in serial connection!")
+   elif (errno == 4):
+      print("Error in Resetting board!")
+   elif (errno == 5):
       print("Error in flashing board!")
+   elif (errno == 6):
+      print("Error in power test!")
 
    exit(errno)
 
@@ -58,10 +65,22 @@ def runGenerator(filePath: os.path, circuitCount: int):
 
 # Resets the board by pulling down RESET 
 # And then by pulling down USR_BTN (GPIO6)
-def enableProgrammingMode():
-   ### PLACEHOLDER ###
+def enableProgrammingMode(ser: serial.Serial):
+   # Test connection
+   if (not checkSerConnection(ser)): return False
+   ser.flush()
    # Reset board using uC connected to RST pin and GPIO6 (USR_BTN)
    # Pull down USR_BTN (GPIO6)
+   ser.write(b'r')
+   read = ser.read()
+   if (read.decode('UTF-8') != 'c'): 
+      print("QT+ reset command not received!")
+      return False
+   print("Waiting for QT+ to finish entering programming mode...")
+   read = ser.read()
+   if (read.decode('UTF-8') != 'd'):
+      print("Invalid code after QT+ reset: {}".format(read))
+      return False
    return True
 
 # Compiles the QT_APP using make -C
@@ -70,13 +89,27 @@ def compileProgram():
    if (val == 0): return True
    else: return False
 
+# Test serial connection
+def checkSerConnection(ser: serial.Serial):
+   ser.flush()
+   ser.write(b't')
+   read = ser.read()
+   if (read.decode('UTF-8') != 'c'): 
+      print("Serial connection fail: {}".format(read))
+      return False
+   read = ser.read()
+   if (read.decode('UTF-8') != 'c'): 
+      print("Serial connection fail: {}".format(read))
+      return False
+   return True
+
 # Start Serial connection
 def startSerial(comPort: str):
    ser = serial.Serial(comPort)
    if (ser.name != comPort): return False
    # Test connection
-   ser.write('T')
-   if (ser.read() != 'C'): return False
+   if (not checkSerConnection(ser)): return False
+   ser.flush()
    return ser
 
 # Flasing board over USB
@@ -84,70 +117,100 @@ def startSerial(comPort: str):
 # QORC_PORT: port to which the QT+ is connected for transferring data
 def flashBoard(ser, QORC_PORT: str, ):
    if not enableProgrammingMode(ser): 
-      printError(2)
+      printError(4)
    # Setting the QORC_PORT in the environment
    os.environ['QORC_PORT'] = QORC_PORT
+   # Wait for COM Port to show up
+   time.sleep(8)
    # Using make flash
    val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), shell=True)
    if (val == 0): return True
    else: return False
 
-
 # Output measurements string to csv file
 # Sample seperated by ';', values by ':'
 def outputToCsv(sheetName: str, measurements: list):
+   print("Creating sheet {}".format(sheetName))
    # Check if output dir exists
    if not os.path.isdir(OUTPUT_DIR):
       os.mkdir(OUTPUT_DIR)
-   # Check if file is already present
-   if not os.path.isfile(os.path.join(OUTPUT_DIR, OUTPUT_FILE)):
-         workbook = xlsxwriter.Workbook(OUTPUT_FILE)
-   # Create new worksheet
-   while sheetName in workbook.sheetnames:
-      # Prevent overwriting
-      sheetName = "new_" + sheetName
-   worksheet = workbook.add_worksheet(sheetName)
+   # Open Workbook
+   if (os.path.exists(os.path.join(OUTPUT_DIR, OUTPUT_FILE))):
+      workbook = openpyxl.load_workbook(os.path.join(OUTPUT_DIR, OUTPUT_FILE))
+      while sheetName in workbook.sheetnames:
+         # Prevent overwriting
+         sheetName = "new_" + sheetName
+      worksheet = workbook.create_sheet(sheetName)
+   else: 
+      workbook = openpyxl.Workbook()
+      worksheet = workbook.active
+      worksheet.title=sheetName
+
    # Add headers
-   for i in range(len(HEADERS)):
-      worksheet.write(0, i, HEADERS[i])
+   for i in range(1, len(HEADERS)+1):
+      worksheet.cell(row=1, column=i, value=HEADERS[i-1])
    # Add date as final header
-   worksheet.write(0, 3, datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+   worksheet.cell(row=1, column=i+1, value = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
    # Add data
-   rowCounter = 1 # Start at one due to header row
+   rowCounter = 2 # Start at one due to header row
    # Split measurments string
    measurements = measurements.split(';')
+   # Remove index containing 'END' keyword
+   del measurements[-1]
+   # Keep track of averages
+   averageV = 0
+   averagemA = 0
+   averagemW = 0
    for row in measurements:
       sample = row.split(':')
-      for column in range(len(sample)):
-         worksheet.write(rowCounter, column, sample[column])
+      averageV += float(sample[0])
+      averagemA += float(sample[1])
+      averagemW += float(sample[2])
+      for column in range(1, len(HEADERS)+1):
+         worksheet.cell(row=rowCounter, column=column, value=float(sample[column-1]))
+      rowCounter += 1
    
-   workbook.close()
+   # Add average values
+   worksheet.cell(row=rowCounter, column=1, value=averageV/len(measurements))
+   worksheet.cell(row=rowCounter, column=2, value=averagemA/len(measurements))
+   worksheet.cell(row=rowCounter, column=3, value=averagemW/len(measurements))
+   workbook.save(OUTPUT_FILE)
    return True
+
 # Run power tests by sending serial command to uC connected to INA219 to 
 # perform power tests for the desired amount of time
 # comPort: Port to which the uC with the INA219 is connected
-def runPowerTests(ser, testLength: int, betweenTime: int, outName: str):
+def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, outName: str, circuitCount: int):
    # Send command to uC to confirm link
-   ser.write("T")
-   if (ser.read() != 'C'): return False
+   if (not checkSerConnection(ser)): return False
    # Send command to uC to start testing for power with length and sample delay
-   ser.write("{} {}".format(testLength, betweenTime))
+   ser.write(bytes("p {} {}".format(testLength, betweenTime), 'UTF-8'))
+   read = ser.read()
+   if (read.decode('UTF-8') != 'c'): 
+      print("Measurements start command not received!")
+      return False
+   print("Starting power tests with length: {}, delay: {}".format(testLength, betweenTime))
    # Receive all the data and chop up into individual measurements
-   measurements = ser.read_until('\n')
+   measurements = ser.read_until(expected=b"END").decode("UTF-8")
+   ser.close()
+   print("Done! Outputting to CSV...")
    # Output to CSV file
-   outputToCsv(outName, measurements)
+   outputToCsv(outName + "_" + str(circuitCount), measurements)
    return True
 
 if __name__ == '__main__':
    args = parseArguments()
-   if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, args.generator), args.circuitCount):
-      printError(1)
-   if not compileProgram():
-      printError(2)
-   ser = startSerial(args.comPort)
-   if (ser == False):
-      printError(3)
-   if not flashBoard(ser):
-      printError(4)
-   if not runPowerTests(ser, args.powerLength, args.outFile):
-      printError(5)
+   for i in range(0, int(args.circuitCount), 5):
+      print("Running {}".format(i))
+      # if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, args.generator), i):
+      #    printError(1)
+      # if not compileProgram():
+      #    printError(2)
+      ser = startSerial(args.comPort)
+      if (ser == False):
+         printError(3)
+      # if not flashBoard(ser, args.QORC_PORT):
+      #    printError(5)
+      # Wait for COM port to show up
+      if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
+         printError(6)
