@@ -20,7 +20,7 @@ FPGA_FILE_PATH = os.path.join(QT_APP_PATH, "MODULE_top.v")
 OUTPUT_DIR = r"./"
 OUTPUT_FILE = r"Power_Test_Output.xlsx"
 
-HEADERS = ["Voltage(V)", "Amperage(A)", "Wattage(mW)"]
+HEADERS = ["Voltage(V)", "Amperage(mA)", "Wattage(mW)"]
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
@@ -120,18 +120,16 @@ def startSerial(comPort: str):
 # Flasing board over USB
 # comPort: port which is connected to the uC for controlling the QT+
 # QORC_PORT: port to which the QT+ is connected for transferring data
-def flashBoard(ser, QORC_PORT: str, ):
+def flashBoard(ser):
    print("Putting QT+ into programming mode")
    if not enableProgrammingMode(ser): 
       printError(4)
-   # Setting the QORC_PORT in the environment
-   os.environ['QORC_PORT'] = QORC_PORT
    # Wait for COM Port to show up
    time.sleep(8)
    # Using make flash
    print("Flashing...")
    val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), shell=True,
-                               stdout=subprocess.DEVNULL)
+                               )
    if (val == 0): return True
    else: return False
 
@@ -184,6 +182,7 @@ def outputToCsv(sheetName: str, measurements: list):
    worksheet.cell(row=rowCounter, column=1, value=averageV/len(measurements))
    worksheet.cell(row=rowCounter, column=2, value=averagemA/len(measurements))
    worksheet.cell(row=rowCounter, column=3, value=averagemW/len(measurements))
+   worksheet.cell(row=rowCounter, column=4, value='Average')
    workbook.save(OUTPUT_FILE)
    return True
 
@@ -221,30 +220,47 @@ def mainLoop(args, makeThread):
       print("Running {}".format(i))
       if makeThread.isAlive():
          print("Waiting for next program to compile!")
-         while(makeThread.isAlive()): 
-            time.sleep(5)
-      if not flashBoard(ser, args.QORC_PORT):
+         makeThread.join()
+      print("Flasing board")
+      if not flashBoard(ser):
          printError(5)
       ### Build the next program in the background ###
       makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, i), daemon=True)
       makeThread.start()
       ### Test the currently flashed program ###
+      # Wait for the FPGA program to start
+      time.sleep(6)
       if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
          printError(6)
+   # Finish final iteration
+   if makeThread.isAlive():
+      print("Waiting for next program to compile!")
+      makeThread.join()
+   if not flashBoard(ser):
+      printError(5)
+   ### Test the currently flashed program ###
+   # Wait for the FPGA program to start
+   time.sleep(6)
+   if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
+      printError(6)
 
 if __name__ == '__main__':
    args = parseArguments()
+   # Setting the QORC_PORT in the environment
+   os.environ['QORC_PORT'] = args.QORC_PORT
    # Run the first compile outside of the loop
    generateAndCompile(args.generator, 0)
    # Start serial and flash the first program
    ser = startSerial(args.comPort)
    if (ser == False):
       printError(3)
-   if not flashBoard(ser, args.QORC_PORT):
+   if not flashBoard(ser):
       printError(5)
    ### Build the next program in the background ###
    makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, args.increment), daemon=True)
    makeThread.start()
+   # Wait for the FPGA program to start
+   time.sleep(6)
    ### Test the currently flashed program ###
    if not runPowerTests(ser, args.testLength, args.delay, args.generator, 0):
       printError(6)
