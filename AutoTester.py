@@ -61,7 +61,8 @@ def runGenerator(filePath: os.path, circuitCount: int):
    filePath = os.path.join("./", filePath)
    # Run the bash generator script
    val = subprocess.check_call("{} {} {}".format(filePath, circuitCount, 
-                               FPGA_FILE_PATH), shell=True, stdout=subprocess.DEVNULL)
+                               FPGA_FILE_PATH), shell=True, 
+                               stdout=subprocess.DEVNULL)
    
    if (val == 0): return True
    else: return False
@@ -125,11 +126,11 @@ def flashBoard(ser):
    if not enableProgrammingMode(ser): 
       printError(4)
    # Wait for COM Port to show up
-   time.sleep(8)
+   time.sleep(6)
    # Using make flash
    print("Flashing...")
-   val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), shell=True,
-                               )
+   val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), 
+                               shell=True)
    if (val == 0): return True
    else: return False
 
@@ -156,7 +157,8 @@ def outputToCsv(sheetName: str, measurements: list):
    for i in range(1, len(HEADERS)+1):
       worksheet.cell(row=1, column=i, value=HEADERS[i-1])
    # Add date as final header
-   worksheet.cell(row=1, column=i+1, value = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+   worksheet.cell(row=1, column=i+1, 
+                  value = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
    # Add data
    rowCounter = 2 # Start at one due to header row
    # Split measurments string
@@ -175,7 +177,8 @@ def outputToCsv(sheetName: str, measurements: list):
       averagemA += float(sample[1])
       averagemW += float(sample[2])
       for column in range(1, len(HEADERS)+1):
-         worksheet.cell(row=rowCounter, column=column, value=float(sample[column-1]))
+         worksheet.cell(row=rowCounter, column=column, 
+                        value=float(sample[column-1]))
       rowCounter += 1
    
    # Add average values
@@ -189,7 +192,8 @@ def outputToCsv(sheetName: str, measurements: list):
 # Run power tests by sending serial command to uC connected to INA219 to 
 # perform power tests for the desired amount of time
 # comPort: Port to which the uC with the INA219 is connected
-def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, outName: str, circuitCount: int):
+def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, 
+                  outName: str, circuitCount: int):
    # Send command to uC to confirm link
    if (not checkSerConnection(ser)): return False
    # Send command to uC to start testing for power with length and sample delay
@@ -198,7 +202,9 @@ def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, outName
    if (read.decode('UTF-8') != 'c'): 
       print("Measurements start command not received!")
       return False
-   print("Starting power tests with length: {}, delay: {}".format(testLength, betweenTime))
+   print("Starting power tests with length: {}ms, delay: {}ms".format(
+                                                                  testLength, 
+                                                                  betweenTime))
    # Receive all the data and chop up into individual measurements
    measurements = ser.read_until(expected=b"END").decode("UTF-8")
    print("Done! Outputting to CSV...")
@@ -208,7 +214,8 @@ def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, outName
 
 def generateAndCompile(generator, i):
    print("Generating {} with {} circuits".format(generator, i))
-   if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, generator), i):
+   if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, generator), 
+                       i):
       printError(1)
    
    print("Compiling...")
@@ -216,7 +223,8 @@ def generateAndCompile(generator, i):
       printError(2)
 
 def mainLoop(args, makeThread):
-   for i in range(int(args.increment) + int(args.increment), int(args.circuitCount), int(args.increment)):
+   for i in range(int(args.increment) + int(args.increment), 
+                  int(args.circuitCount), int(args.increment)):
       print("Running {}".format(i))
       if makeThread.isAlive():
          print("Waiting for next program to compile!")
@@ -225,7 +233,8 @@ def mainLoop(args, makeThread):
       if not flashBoard(ser):
          printError(5)
       ### Build the next program in the background ###
-      makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, i), daemon=True)
+      makeThread = threading.Thread(target=generateAndCompile, 
+                                    args=(args.generator, i), daemon=True)
       makeThread.start()
       ### Test the currently flashed program ###
       # Wait for the FPGA program to start
@@ -238,10 +247,12 @@ def mainLoop(args, makeThread):
       makeThread.join()
    if not flashBoard(ser):
       printError(5)
-   ### Test the currently flashed program ###
+
+   ### Test the final program ###
    # Wait for the FPGA program to start
    time.sleep(6)
-   if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
+   if not runPowerTests(ser, args.testLength, args.delay, args.generator, 
+                        args.circuitCount):
       printError(6)
 
 if __name__ == '__main__':
@@ -257,7 +268,9 @@ if __name__ == '__main__':
    if not flashBoard(ser):
       printError(5)
    ### Build the next program in the background ###
-   makeThread = threading.Thread(target=generateAndCompile, args=(args.generator, args.increment), daemon=True)
+   makeThread = threading.Thread(target=generateAndCompile, 
+                                 args=(args.generator, args.increment), 
+                                 daemon=True)
    makeThread.start()
    # Wait for the FPGA program to start
    time.sleep(6)
