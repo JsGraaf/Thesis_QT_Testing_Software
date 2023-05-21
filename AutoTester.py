@@ -223,8 +223,8 @@ def generateAndCompile(generator, i):
       printError(2)
 
 def mainLoop(args, makeThread):
-   for i in range(int(args.increment) + int(args.increment), 
-                  int(args.circuitCount), int(args.increment)):
+   for i in range(int(args.increment), int(args.circuitCount), 
+                  int(args.increment)):
       print("Running {}".format(i))
       if makeThread.isAlive():
          print("Waiting for next program to compile!")
