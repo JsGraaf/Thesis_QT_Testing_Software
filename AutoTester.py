@@ -22,6 +22,14 @@ OUTPUT_FILE = r"Power_Test_Output.xlsx"
 HEADERS = ["Voltage(V)", "Amperage(mA)", "Wattage(mW)", "LDO2 Voltage(V)"]
 
 LDO_2_TRIP_LEVEL = 0.95
+QT_RESET_TIME = 6
+
+ERROR_IN_GENERATOR_EXECUTION = 1
+ERROR_IN_EXECUTING_MAKE = 2
+ERROR_IN_SERIAL_CONNECTION = 3
+ERROR_IN_RESETTING_BOARD = 4
+ERROR_IN_FLASHING_BOARD = 5
+ERROR_IN_POWER_TEST = 6
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
@@ -42,17 +50,17 @@ def parseArguments():
    return argParser.parse_args()
 
 def printError(errno: int):
-   if (errno == 1):
+   if (errno == ERROR_IN_GENERATOR_EXECUTION):
       print("Error in generator execution!")
-   elif (errno == 2):
+   elif (errno == ERROR_IN_EXECUTING_MAKE):
       print("Error in executing make!")
-   elif (errno == 3):
+   elif (errno == ERROR_IN_SERIAL_CONNECTION):
       print("Error in serial connection!")
-   elif (errno == 4):
+   elif (errno == ERROR_IN_RESETTING_BOARD):
       print("Error in Resetting board!")
-   elif (errno == 5):
+   elif (errno == ERROR_IN_FLASHING_BOARD):
       print("Error in flashing board!")
-   elif (errno == 6):
+   elif (errno == ERROR_IN_POWER_TEST):
       print("Error in power test!")
    exit(errno)
 
@@ -125,9 +133,9 @@ def startSerial(comPort: str):
 def flashBoard(ser):
    print("Putting QT+ into programming mode")
    if not enableProgrammingMode(ser): 
-      printError(4)
+      printError(ERROR_IN_RESETTING_BOARD)
    # Wait for COM Port to show up
-   time.sleep(6)
+   time.sleep(QT_RESET_TIME)
    # Using make flash
    print("Flashing...")
    val = subprocess.check_call("make flash -C {}".format(QT_APP_DIR), 
@@ -220,11 +228,11 @@ def generateAndCompile(generator, i):
    print("Generating {} with {} circuits".format(generator, i))
    if not runGenerator(os.path.join(VERILOG_GENERATION_FILES_PATH, generator), 
                        i):
-      printError(1)
+      printError(ERROR_IN_GENERATOR_EXECUTION)
    
    print("Compiling...")
    if not compileProgram():
-      printError(2)
+      printError(ERROR_IN_EXECUTING_MAKE)
 
 def mainLoop(args, makeThread):
    for i in range(int(args.increment), int(args.circuitCount), 
@@ -235,29 +243,29 @@ def mainLoop(args, makeThread):
          makeThread.join()
       print("Flasing board")
       if not flashBoard(ser):
-         printError(5)
+         printError(ERROR_IN_FLASHING_BOARD)
       ### Build the next program in the background ###
       makeThread = threading.Thread(target=generateAndCompile, 
                                     args=(args.generator, i), daemon=True)
       makeThread.start()
       ### Test the currently flashed program ###
       # Wait for the FPGA program to start
-      time.sleep(6)
+      time.sleep(QT_RESET_TIME)
       if not runPowerTests(ser, args.testLength, args.delay, args.generator, i):
-         printError(6)
+         printError(ERROR_IN_POWER_TEST)
    # Finish final iteration
    if makeThread.isAlive():
       print("Waiting for next program to compile!")
       makeThread.join()
    if not flashBoard(ser):
-      printError(5)
+      printError(ERROR_IN_FLASHING_BOARD)
 
    ### Test the final program ###
    # Wait for the FPGA program to start
-   time.sleep(6)
+   time.sleep(QT_RESET_TIME)
    if not runPowerTests(ser, args.testLength, args.delay, args.generator, 
                         args.circuitCount):
-      printError(6)
+      printError(ERROR_IN_POWER_TEST)
 
 if __name__ == '__main__':
    args = parseArguments()
@@ -268,19 +276,19 @@ if __name__ == '__main__':
    # Start serial and flash the first program
    ser = startSerial(args.comPort)
    if (ser == False):
-      printError(3)
+      printError(ERROR_IN_SERIAL_CONNECTION)
    if not flashBoard(ser):
-      printError(5)
+      printError(ERROR_IN_FLASHING_BOARD)
    ### Build the next program in the background ###
    makeThread = threading.Thread(target=generateAndCompile, 
                                  args=(args.generator, args.increment), 
                                  daemon=True)
    makeThread.start()
    # Wait for the FPGA program to start
-   time.sleep(6)
+   time.sleep(QT_RESET_TIME)
    ### Test the currently flashed program ###
    if not runPowerTests(ser, args.testLength, args.delay, args.generator, 0):
-      printError(6)
+      printError(ERROR_IN_POWER_TEST)
    
    try: 
       mainLoop(args, makeThread)
