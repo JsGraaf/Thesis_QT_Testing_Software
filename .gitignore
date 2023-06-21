@@ -1,0 +1,4 @@
+*.xlsx
+MODULE_top.v.backup
+QT_App/fpga/rtl/build
+QT_App/fpga/rtl/Makefile.symbiflow
