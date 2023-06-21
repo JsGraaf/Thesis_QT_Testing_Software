@@ -20,7 +20,9 @@ FPGA_FILE_PATH = os.path.join(QT_APP_PATH, "MODULE_top.v")
 OUTPUT_DIR = r"./"
 OUTPUT_FILE = r"Power_Test_Output.xlsx"
 
-HEADERS = ["Voltage(V)", "Amperage(mA)", "Wattage(mW)"]
+HEADERS = ["Voltage(V)", "Amperage(mA)", "Wattage(mW)", "LDO2 Voltage(V)"]
+
+LDO_2_TRIP_LEVEL = 0.95
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
@@ -30,13 +32,13 @@ def parseArguments():
                           help="Specify the serial port to which the controller uC with INA219 is connected")
    argParser.add_argument("-g", "--generator", required=True,
                           help="Specify the filename of the verilog generator, located in Verilog_Generators/")
-   argParser.add_argument("-c", "--circuitCount", required=True,
+   argParser.add_argument("-c", "--circuitCount", default=200,
                           help="Specify the amount of circuits to generate")
-   argParser.add_argument("-i", "--increment", required=True,
+   argParser.add_argument("-i", "--increment", default=10,
                           help="Amount to incrament the circuits by")
-   argParser.add_argument("-l", "--testLength", required=True,
+   argParser.add_argument("-l", "--testLength", default=50000,
                           help="Specify the length of the power tests")
-   argParser.add_argument("-d", "--delay", required=True, 
+   argParser.add_argument("-d", "--delay", default=500,
                           help="Specify delay between measurements")
    return argParser.parse_args()
 
@@ -171,11 +173,13 @@ def outputToCsv(sheetName: str, measurements: list):
    averageV = 0
    averagemA = 0
    averagemW = 0
+   LDO2Tripped = False
    for row in measurements:
       sample = row.split(':')
       averageV += float(sample[0])
       averagemA += float(sample[1])
       averagemW += float(sample[2])
+      if (float(sample[3]) < LDO_2_TRIP_LEVEL): LDO2Tripped = True
       for column in range(1, len(HEADERS)+1):
          worksheet.cell(row=rowCounter, column=column, 
                         value=float(sample[column-1]))
@@ -185,7 +189,8 @@ def outputToCsv(sheetName: str, measurements: list):
    worksheet.cell(row=rowCounter, column=1, value=averageV/len(measurements))
    worksheet.cell(row=rowCounter, column=2, value=averagemA/len(measurements))
    worksheet.cell(row=rowCounter, column=3, value=averagemW/len(measurements))
-   worksheet.cell(row=rowCounter, column=4, value='Average')
+   worksheet.cell(row=rowCounter, column=4, value=LDO2Tripped)
+   worksheet.cell(row=rowCounter, column=5, value='Average')
    workbook.save(OUTPUT_FILE)
    return True
 

@@ -29,7 +29,7 @@ echo """module not_3_ro(
 assign connect[0] = en ? connect[3] : 0;
 assign out = en ? connect[3] : 0;
 
-wire [3:0] connect;
+(*keep*)wire [3:0] connect;
 
 inv inv1 (
    .A(connect[0]),
@@ -71,7 +71,7 @@ end
 if [ "$AMOUNT" -gt "0" ]; then
    for i in $( eval echo {1..$AMOUNT} )
    do
-      echo """(*keep=1*) not_3_ro ro$((i - 1)) (
+      echo """not_3_ro ro$((i - 1)) (
    .en(en),
    .out(out[$((i-1))]),
 );
