@@ -11,7 +11,6 @@ import datetime
 import time
 import threading
 
-
 VERILOG_GENERATION_FILES_PATH = r"Verilog_Generators/"
 QORC_SDK_PATH = r"/home/joris/Uni/Scriptie/qorc_sdk/"
 QT_APP_DIR = r"QT_App"
@@ -28,14 +27,14 @@ def parseArguments():
    argParser = argparse.ArgumentParser()
    argParser.add_argument("-q", "--QORC_PORT", required=True,
                           help="Specify the serial port to which the QT+ is connected in programming mode")
-   argParser.add_argument("-p", "--comPort", required=True,
+   argParser.add_argument("-p", "--COM_PORT", required=True,
                           help="Specify the serial port to which the controller uC with INA219 is connected")
    argParser.add_argument("-g", "--generator", required=True,
                           help="Specify the filename of the verilog generator, located in Verilog_Generators/")
    argParser.add_argument("-c", "--circuitCount", default=200,
                           help="Specify the amount of circuits to generate")
    argParser.add_argument("-i", "--increment", default=10,
-                          help="Amount to incrament the circuits by")
+                          help="Amount to increment the circuits by")
    argParser.add_argument("-l", "--testLength", default=50000,
                           help="Specify the length of the power tests")
    argParser.add_argument("-d", "--delay", default=500,

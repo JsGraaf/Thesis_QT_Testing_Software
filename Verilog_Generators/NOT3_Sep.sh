@@ -1,11 +1,10 @@
 #!/bin/bash
 
-### NOT3 RO generator for verilog code for QT plus ###
-# Generates NOT3 RO generator with 
+### NOT3 Seperate generator for verilog code for QT plus ###
 
-# Usage: ./baseGenerator <Amount of circuits> <output file path>
+# Usage: ./<Filename> <Amount of circuits> <output file path>
 FILE_NAME='MODULE_top.txt'
-CIRCUIT_NAME="NOT3"
+CIRCUIT_NAME="NOT3 Seperate"
 # Check if arguments where given
 if [ $# -eq 0 ]
   then
@@ -19,8 +18,7 @@ OUTPUT_FILE_PATH=$2
 
 echo "Generating ${1} $CIRCUIT_NAME"
 
-### TOP OF MODULE ###
-# Add IOs between ()
+### INITIALISATION OF SUBMODULES ###
 echo """module not_3_ro(
    input en,
    output out,
@@ -46,14 +44,17 @@ inv inv3 (
    .Q(connect[3])
 );
 endmodule
+""" > $FILE_NAME
 
+### TOP OF MODULE ###
+echo """ 
 module MODULE_top(
    io_pad
 );
 
 // GPIO
 inout    wire     [31:0]      io_pad      ;
-""" > $FILE_NAME
+""" >> $FILE_NAME
 
 if [ "$AMOUNT" -lt "2" ]; then
 echo "wire [2:0] out;" >> $FILE_NAME
@@ -67,7 +68,7 @@ initial begin
 end
 """ >> $FILE_NAME
 
-
+### INSTANCE GENERATION (individual Circuit) ###
 if [ "$AMOUNT" -gt "0" ]; then
    for i in $( eval echo {1..$AMOUNT} )
    do
@@ -77,7 +78,7 @@ if [ "$AMOUNT" -gt "0" ]; then
 );
 """ >> $FILE_NAME
    done
-else # In case the design is empty (circuits = 0)
+else # In case the design is empty (circuits = 0), add 1 inverter
 echo """inv invBase (
    .A(io_pad[2]),
    .Q(io_pad[4])
@@ -85,6 +86,7 @@ echo """inv invBase (
 """ >> $FILE_NAME
 fi
 
+### END OF MODULE ###
 echo 'assign io_pad[2] = |out;' >> $FILE_NAME
 echo 'endmodule' >> $FILE_NAME
 
