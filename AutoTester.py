@@ -19,7 +19,7 @@ FPGA_FILE_PATH = os.path.join(QT_APP_PATH, "MODULE_top.v")
 OUTPUT_DIR = r"./"
 OUTPUT_FILE = r"Power_Test_Output.xlsx"
 
-HEADERS = ["Voltage(V)", "Amperage(mA)", "Wattage(mW)", "LDO2 Voltage(V)"]
+HEADERS = ["Timing(ms)", "Voltage(V)", "Amperage(mA)", "Wattage(mW)", "LDO2 Voltage(V)"]
 
 LDO_2_TRIP_LEVEL = 0.95
 QT_RESET_TIME = 6
@@ -31,6 +31,8 @@ ERROR_IN_RESETTING_BOARD = 4
 ERROR_IN_FLASHING_BOARD = 5
 ERROR_IN_POWER_TEST = 6
 
+threadReturn = 0
+
 def parseArguments():
    argParser = argparse.ArgumentParser()
    argParser.add_argument("-q", "--QORC_PORT", required=True,
@@ -41,6 +43,8 @@ def parseArguments():
                           help="Specify the filename of the verilog generator, located in Verilog_Generators/")
    argParser.add_argument("-c", "--circuitCount", default=200,
                           help="Specify the amount of circuits to generate")
+   argParser.add_argument("-s", "--circuitStart", default=0,
+                          help="The starting amount of circuits to generate")
    argParser.add_argument("-i", "--increment", default=10,
                           help="Amount to increment the circuits by")
    argParser.add_argument("-l", "--testLength", default=50000,
@@ -62,6 +66,7 @@ def printError(errno: int):
       print("Error in flashing board!")
    elif (errno == ERROR_IN_POWER_TEST):
       print("Error in power test!")
+   threadReturn = errno
    exit(errno)
 
 # Runs the specified generator, located in VERILOG_GENERATION_FILES_PATH
@@ -118,17 +123,17 @@ def checkSerConnection(ser: serial.Serial):
    return True
 
 # Start Serial connection
-def startSerial(comPort: str):
+def startSerial(COM_PORT: str):
    print("Starting Serial...")
-   ser = serial.Serial(comPort)
-   if (ser.name != comPort): return False
+   ser = serial.Serial(COM_PORT)
+   if (ser.name != COM_PORT): return False
    # Test connection
    if (not checkSerConnection(ser)): return False
    ser.flush()
    return ser
 
 # Flasing board over USB
-# comPort: port which is connected to the uC for controlling the QT+
+# COM_PORT: port which is connected to the uC for controlling the QT+
 # QORC_PORT: port to which the QT+ is connected for transferring data
 def flashBoard(ser):
    print("Putting QT+ into programming mode")
@@ -145,7 +150,7 @@ def flashBoard(ser):
 
 # Output measurements string to csv file
 # Sample seperated by ';', values by ':'
-def outputToCsv(sheetName: str, measurements: list):
+def outputToCsv(sheetName: str, measurements: list, args):
    print("Creating sheet {}".format(sheetName))
    # Check if output dir exists
    if not os.path.isdir(OUTPUT_DIR):
@@ -187,23 +192,28 @@ def outputToCsv(sheetName: str, measurements: list):
       averagemA += float(sample[1])
       averagemW += float(sample[2])
       if (float(sample[3]) < LDO_2_TRIP_LEVEL): LDO2Tripped = True
-      for column in range(1, len(HEADERS)+1):
+      # Add timing info
+      worksheet.cell(row=rowCounter, column = 1, 
+                     value = int(args.delay) * (rowCounter-2))
+      for column in range(2, len(HEADERS)+1):
          worksheet.cell(row=rowCounter, column=column, 
-                        value=float(sample[column-1]))
+                        value=float(sample[column-2]))
       rowCounter += 1
    
    # Add average values
-   worksheet.cell(row=rowCounter, column=1, value=averageV/len(measurements))
-   worksheet.cell(row=rowCounter, column=2, value=averagemA/len(measurements))
-   worksheet.cell(row=rowCounter, column=3, value=averagemW/len(measurements))
-   worksheet.cell(row=rowCounter, column=4, value=LDO2Tripped)
-   worksheet.cell(row=rowCounter, column=5, value='Average')
+   worksheet.cell(row=rowCounter, column=2, value=averageV/len(measurements))
+   worksheet.cell(row=rowCounter, column=3, value=averagemA/len(measurements))
+   worksheet.cell(row=rowCounter, column=4, value=averagemW/len(measurements))
+   worksheet.cell(row=rowCounter, column=5, value=LDO2Tripped)
+   worksheet.cell(row=rowCounter, column=6, value='Average')
+   # Add row count below date
+   worksheet.cell(row=2, column=i+1, value = rowCounter-2)
    workbook.save(OUTPUT_FILE)
    return True
 
 # Run power tests by sending serial command to uC connected to INA219 to 
 # perform power tests for the desired amount of time
-# comPort: Port to which the uC with the INA219 is connected
+# COM_PORT: Port to which the uC with the INA219 is connected
 def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int, 
                   outName: str, circuitCount: int):
    # Send command to uC to confirm link
@@ -221,7 +231,7 @@ def runPowerTests(ser: serial.Serial, testLength: int, betweenTime: int,
    measurements = ser.read_until(expected=b"END").decode("UTF-8")
    print("Done! Outputting to CSV...")
    # Output to CSV file
-   outputToCsv(outName + "_" + str(circuitCount), measurements)
+   outputToCsv(outName + "_" + str(circuitCount), measurements, args)
    return True
 
 def generateAndCompile(generator, i):
@@ -235,12 +245,14 @@ def generateAndCompile(generator, i):
       printError(ERROR_IN_EXECUTING_MAKE)
 
 def mainLoop(args, makeThread):
-   for i in range(int(args.increment), int(args.circuitCount), 
+   for i in range(int(args.increment) + int(args.circuitStart), int(args.circuitCount), 
                   int(args.increment)):
       print("Running {}".format(i))
       if makeThread.isAlive():
          print("Waiting for next program to compile!")
          makeThread.join()
+         if (threadReturn != 0):
+            printError(threadReturn)
       print("Flasing board")
       if not flashBoard(ser):
          printError(ERROR_IN_FLASHING_BOARD)
@@ -272,22 +284,22 @@ if __name__ == '__main__':
    # Setting the QORC_PORT in the environment
    os.environ['QORC_PORT'] = args.QORC_PORT
    # Run the first compile outside of the loop
-   generateAndCompile(args.generator, 0)
+   generateAndCompile(args.generator, args.circuitStart)
    # Start serial and flash the first program
-   ser = startSerial(args.comPort)
+   ser = startSerial(args.COM_PORT)
    if (ser == False):
       printError(ERROR_IN_SERIAL_CONNECTION)
    if not flashBoard(ser):
       printError(ERROR_IN_FLASHING_BOARD)
    ### Build the next program in the background ###
    makeThread = threading.Thread(target=generateAndCompile, 
-                                 args=(args.generator, args.increment), 
+                                 args=(args.generator, int(args.circuitStart) + int(args.increment)), 
                                  daemon=True)
    makeThread.start()
    # Wait for the FPGA program to start
    time.sleep(QT_RESET_TIME)
    ### Test the currently flashed program ###
-   if not runPowerTests(ser, args.testLength, args.delay, args.generator, 0):
+   if not runPowerTests(ser, args.testLength, args.delay, args.generator, args.circuitStart):
       printError(ERROR_IN_POWER_TEST)
    
    try: 
