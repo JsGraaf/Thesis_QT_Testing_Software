@@ -78,7 +78,7 @@ if [ "$AMOUNT" -gt "0" ]; then
    do
       echo """not_3_ro ro$((i - 1)) (
    .en(en),
-   .out(out[$((i-1))]),
+   .out(out[$(( i-1 ))]),
 );
 """ >> $FILE_NAME
    done

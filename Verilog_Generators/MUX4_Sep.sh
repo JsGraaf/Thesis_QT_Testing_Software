@@ -73,7 +73,7 @@ if [ "$AMOUNT" -gt "0" ]; then
    do
       echo """mux4_ro ro$i(
    .en(en),
-   .out(out[$(( AMOUNT-1 )):0]),
+   .out(out[$(( i-1 ))]),
 );
 """ >> $FILE_NAME
    done
