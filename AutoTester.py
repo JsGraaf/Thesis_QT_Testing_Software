@@ -16,8 +16,7 @@ QORC_SDK_PATH = r"/home/joris/Uni/Scriptie/qorc_sdk/"
 QT_APP_DIR = r"QT_App"
 QT_APP_PATH = r"QT_App/fpga/rtl/"
 FPGA_FILE_PATH = os.path.join(QT_APP_PATH, "MODULE_top.v")
-OUTPUT_DIR = r"./"
-OUTPUT_FILE = r"Power_Test_Output.xlsx"
+OUTPUT_DIR = r"./Results/"
 
 HEADERS = ["Timing(ms)", "Voltage(V)", "Amperage(mA)", "Wattage(mW)", "LDO2 Voltage(V)"]
 
@@ -32,6 +31,7 @@ ERROR_IN_FLASHING_BOARD = 5
 ERROR_IN_POWER_TEST = 6
 
 threadReturn = 0
+firstRun = False
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
@@ -66,6 +66,7 @@ def printError(errno: int):
       print("Error in flashing board!")
    elif (errno == ERROR_IN_POWER_TEST):
       print("Error in power test!")
+   global threadReturn
    threadReturn = errno
    exit(errno)
 
@@ -156,16 +157,27 @@ def outputToCsv(sheetName: str, measurements: list, args):
    if not os.path.isdir(OUTPUT_DIR):
       os.mkdir(OUTPUT_DIR)
    # Open Workbook
-   if (os.path.exists(os.path.join(OUTPUT_DIR, OUTPUT_FILE))):
-      workbook = openpyxl.load_workbook(os.path.join(OUTPUT_DIR, OUTPUT_FILE))
-      while sheetName in workbook.sheetnames:
-         # Prevent overwriting
-         sheetName = "new_" + sheetName
-      worksheet = workbook.create_sheet(sheetName)
-   else: 
+   filename = args.generator + "_OUTPUT.xlsx"
+   workbook = None
+   worksheet = None
+   global firstRun
+   if (firstRun):   
+      while (os.path.exists(os.path.join(OUTPUT_DIR, filename))):
+         filename = "new_" + filename
       workbook = openpyxl.Workbook()
       worksheet = workbook.active
       worksheet.title=sheetName
+      firstRun = False
+   else: 
+      if (os.path.exists(os.path.join(OUTPUT_DIR, filename))):
+         workbook = openpyxl.load_workbook(os.path.join(OUTPUT_DIR, filename)) 
+         worksheet = workbook.create_sheet(sheetName)
+      else:
+         print("WARNING: Had to create a new workbook after the first iteration!")
+         workbook = openpyxl.Workbook()
+         worksheet = workbook.active
+         worksheet.title=sheetName
+
 
    # Add headers
    for i in range(1, len(HEADERS)+1):
@@ -208,7 +220,7 @@ def outputToCsv(sheetName: str, measurements: list, args):
    worksheet.cell(row=rowCounter, column=6, value='Average')
    # Add row count below date
    worksheet.cell(row=2, column=i+1, value = rowCounter-2)
-   workbook.save(OUTPUT_FILE)
+   workbook.save(os.path.join(OUTPUT_DIR, filename))
    return True
 
 # Run power tests by sending serial command to uC connected to INA219 to 
@@ -248,6 +260,7 @@ def mainLoop(args, makeThread):
    for i in range(int(args.increment) + int(args.circuitStart), int(args.circuitCount), 
                   int(args.increment)):
       print("Running {}".format(i))
+      global threadReturn
       if makeThread.isAlive():
          print("Waiting for next program to compile!")
          makeThread.join()
@@ -258,7 +271,7 @@ def mainLoop(args, makeThread):
          printError(ERROR_IN_FLASHING_BOARD)
       ### Build the next program in the background ###
       makeThread = threading.Thread(target=generateAndCompile, 
-                                    args=(args.generator, i), daemon=True)
+                                    args=(args.generator, i + int(args.increment)), daemon=True)
       makeThread.start()
       ### Test the currently flashed program ###
       # Wait for the FPGA program to start
@@ -269,6 +282,8 @@ def mainLoop(args, makeThread):
    if makeThread.isAlive():
       print("Waiting for next program to compile!")
       makeThread.join()
+      if (threadReturn != 0):
+            printError(threadReturn)
    if not flashBoard(ser):
       printError(ERROR_IN_FLASHING_BOARD)
 
