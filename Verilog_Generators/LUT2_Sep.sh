@@ -52,7 +52,7 @@ inout    wire     [31:0]      io_pad      ;
 """ >> $FILE_NAME
 
 if [ "$AMOUNT" -lt "2" ]; then
-   if ["$AMOUNT" -eq "1"]; then
+   if [ "$AMOUNT" -eq "1" ]; then
       echo "wire out;" >> $FILE_NAME
    else
       echo "wire [2:0] out;" >> $FILE_NAME
@@ -82,13 +82,13 @@ lut_2_ro ro$i(
 else # In case the design is empty (circuits = 0), add 1 inverter
 echo """inv invBase (
    .A(io_pad[2]),
-   .Q(io_pad[4])
+   .Q(io_pad[25])
 );
 """ >> $FILE_NAME
 fi
 
 ### END OF MODULE ###
-echo 'assign io_pad[2] = |out;' >> $FILE_NAME
+echo 'assign io_pad[13] = |out;' >> $FILE_NAME
 echo 'endmodule' >> $FILE_NAME
 
 mv $FILE_NAME $OUTPUT_FILE_PATH

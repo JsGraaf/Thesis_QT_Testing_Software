@@ -36,8 +36,8 @@ end
 
 inv invBase (
    .A(io_pad[2]),
-   .Q(io_pad[4])
+   .Q(io_pad[25])
 );
 
-assign io_pad[2] = |out;
+assign io_pad[13] = |out;
 endmodule

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-### NOT3 Seperate generator for verilog code for QT plus ###
+### LUT1 generator for verilog code for QT plus ###
 
 # Usage: ./<Filename> <Amount of circuits> <output file path>
 FILE_NAME='MODULE_top.txt'
-CIRCUIT_NAME="NOT3 Seperate"
+CIRCUIT_NAME="LUT1"
 # Check if arguments where given
 if [ $# -eq 0 ]
   then
@@ -19,29 +19,23 @@ OUTPUT_FILE_PATH=$2
 echo "Generating ${1} $CIRCUIT_NAME"
 
 ### INITIALISATION OF SUBMODULES ###
-echo """module not_3_ro(
+# This can be deleted if there are no submodules
+echo """
+module lut_1_ro(
    input en,
    output out,
 );
 
-assign connect[0] = en ? connect[3] : 0;
-assign out = en ? connect[3] : 0;
+(*keep*)wire connect;
 
-(*keep*)wire [3:0] connect;
+assign connect = en ? connect : 0;
+assign out = en ? connect : 0;
 
-inv inv1 (
-   .A(connect[0]),
-   .Q(connect[1])
-);
-
-inv inv2 (
-   .A(connect[1]),
-   .Q(connect[2]),
-);
-
-inv inv3 (
-   .A(connect[2]),
-   .Q(connect[3])
+LUT1 #(
+   .INIT(4'b01)
+) ro (
+   .I0(connect),
+   .O(out)
 );
 endmodule
 """ > $FILE_NAME
@@ -70,15 +64,17 @@ reg en;
 initial begin
    en <= 1;
 end
+
 """ >> $FILE_NAME
 
 ### INSTANCE GENERATION (individual Circuit) ###
 if [ "$AMOUNT" -gt "0" ]; then
    for i in $( eval echo {1..$AMOUNT} )
    do
-      echo """not_3_ro ro$((i - 1)) (
+      echo """
+lut_1_ro ro$i(
    .en(en),
-   .out(out[$((i-1))]),
+   .out(out),
 );
 """ >> $FILE_NAME
    done

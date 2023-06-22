@@ -49,13 +49,13 @@ if [ "$AMOUNT" -gt "0" ]; then
 else # In case the design is empty (circuits = 0), add 1 inverter
 echo """inv invBase (
    .A(io_pad[2]),
-   .Q(io_pad[4])
+   .Q(io_pad[25])
 );
 """ >> $FILE_NAME
 fi
 
 ### END OF MODULE ###
-echo '<ADD MODULE END HERE' >> $FILE_NAME
+echo '<ADD MODULE END HERE>' >> $FILE_NAME
 echo 'endmodule' >> $FILE_NAME
 
 mv $FILE_NAME $OUTPUT_FILE_PATH
