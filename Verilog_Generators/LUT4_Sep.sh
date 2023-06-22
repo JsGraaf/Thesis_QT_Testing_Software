@@ -78,7 +78,7 @@ if [ "$AMOUNT" -gt "0" ]; then
       echo """
 lut_4_ro ro$i(
    .en(en),
-   .out(out),
+   .out(out[$(( i-1 ))]),
 );
 """ >> $FILE_NAME
    done

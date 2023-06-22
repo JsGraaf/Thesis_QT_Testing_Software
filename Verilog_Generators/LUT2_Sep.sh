@@ -75,16 +75,14 @@ if [ "$AMOUNT" -gt "0" ]; then
       echo """
 lut_2_ro ro$i(
    .en(en),
-   .out(out),
-);
-""" >> $FILE_NAME
+   .out(out[$(( i-1 ))]),
+);""" >> $FILE_NAME
    done
 else # In case the design is empty (circuits = 0), add 1 inverter
 echo """inv invBase (
    .A(io_pad[2]),
    .Q(io_pad[25])
-);
-""" >> $FILE_NAME
+);""" >> $FILE_NAME
 fi
 
 ### END OF MODULE ###

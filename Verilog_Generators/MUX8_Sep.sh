@@ -1,10 +1,10 @@
 #!/bin/bash
 
-### LUT1 generator for verilog code for QT plus ###
+### MUX8 Seperate generator for verilog code for QT plus ###
 
 # Usage: ./<Filename> <Amount of circuits> <output file path>
 FILE_NAME='MODULE_top.txt'
-CIRCUIT_NAME="LUT1"
+CIRCUIT_NAME="MUX8 Seperate"
 # Check if arguments where given
 if [ $# -eq 0 ]
   then
@@ -19,9 +19,7 @@ OUTPUT_FILE_PATH=$2
 echo "Generating ${1} $CIRCUIT_NAME"
 
 ### INITIALISATION OF SUBMODULES ###
-# This can be deleted if there are no submodules
-echo """
-module lut_1_ro(
+echo """module mux8_ro(
    input en,
    output out,
 );
@@ -31,11 +29,19 @@ module lut_1_ro(
 assign connect = en ? connect : 0;
 assign out = en ? connect : 0;
 
-LUT1 #(
-   .INIT(4'b01)
-) ro (
-   .I0(connect),
-   .O(out)
+mux8x0 ro (
+   .S0(connect),
+   .S1(connect),
+   .S2(connect),
+   .A(1'b1),
+   .B(1'b0),
+   .C(1'b0),
+   .D(1'b0),
+   .E(1'b0),
+   .F(1'b0),
+   .G(1'b0),
+   .H(1'b0),
+   .Q(connect)
 );
 endmodule
 """ > $FILE_NAME
@@ -64,17 +70,15 @@ reg en;
 initial begin
    en <= 1;
 end
-
 """ >> $FILE_NAME
 
 ### INSTANCE GENERATION (individual Circuit) ###
 if [ "$AMOUNT" -gt "0" ]; then
    for i in $( eval echo {1..$AMOUNT} )
    do
-      echo """
-lut_1_ro ro$i(
+      echo """mux8_ro ro$i(
    .en(en),
-   .out(out[$(( i-1 ))]),
+   .out(out[$(( AMOUNT-1 )):0]),
 );
 """ >> $FILE_NAME
    done
