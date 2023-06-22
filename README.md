@@ -8,6 +8,7 @@ The following fork of the QORC SDK should also be installed and operational: htt
 
 The test setup should also be copied and the SAMD21 SEEEDUINO XIAO needs to be configured with the following code: https://github.com/JsGraaf/SAMD21_INA219_Power_Meter. This repo also contains the test setup.
 
+Before install the requirements, be sure to enable the qorc sdk environment. This will install the requirements in that conda environment.
 Install the requirements:
 ``` pip install -r requirements.txt ```
 
