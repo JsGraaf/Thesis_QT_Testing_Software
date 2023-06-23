@@ -1,4 +1,4 @@
-# Thesis Testing Software
+# Thesis QT Testing Software
 Software used for automatically compiling, flashing and testing the Sparkfun Quicklogic Thing+.
 
 # Installation
