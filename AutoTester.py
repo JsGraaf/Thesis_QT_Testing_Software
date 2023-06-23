@@ -31,7 +31,8 @@ ERROR_IN_FLASHING_BOARD = 5
 ERROR_IN_POWER_TEST = 6
 
 threadReturn = 0
-firstRun = False
+firstRun = True
+filename = ''
 
 def parseArguments():
    argParser = argparse.ArgumentParser()
@@ -157,7 +158,9 @@ def outputToCsv(sheetName: str, measurements: list, args):
    if not os.path.isdir(OUTPUT_DIR):
       os.mkdir(OUTPUT_DIR)
    # Open Workbook
-   filename = args.generator + "_OUTPUT.xlsx"
+   global filename
+   if (filename == ''):
+      filename = args.generator + "_OUTPUT.xlsx"
    workbook = None
    worksheet = None
    global firstRun
@@ -177,7 +180,6 @@ def outputToCsv(sheetName: str, measurements: list, args):
          workbook = openpyxl.Workbook()
          worksheet = workbook.active
          worksheet.title=sheetName
-
 
    # Add headers
    for i in range(1, len(HEADERS)+1):
@@ -218,8 +220,8 @@ def outputToCsv(sheetName: str, measurements: list, args):
    worksheet.cell(row=rowCounter, column=4, value=averagemW/len(measurements))
    worksheet.cell(row=rowCounter, column=5, value=LDO2Tripped)
    worksheet.cell(row=rowCounter, column=6, value='Average')
-   # Add row count below date
-   worksheet.cell(row=2, column=i+1, value = rowCounter-2)
+   # Add row count beside the date
+   worksheet.cell(row=1, column=i+2, value = rowCounter-2)
    workbook.save(os.path.join(OUTPUT_DIR, filename))
    return True
 
