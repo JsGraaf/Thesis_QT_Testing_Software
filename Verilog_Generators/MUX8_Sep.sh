@@ -31,8 +31,8 @@ assign out = en ? connect : 0;
 
 mux8x0 ro (
    .S0(connect),
-   .S1(connect),
-   .S2(connect),
+   .S1(1'b0),
+   .S2(1'b0),
    .A(1'b1),
    .B(1'b0),
    .C(1'b0),

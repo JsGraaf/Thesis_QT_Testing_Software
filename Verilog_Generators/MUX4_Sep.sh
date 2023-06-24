@@ -31,7 +31,7 @@ assign out = en ? connect : 0;
 
 mux4x0 ro (
    .S0(connect),
-   .S1(connect),
+   .S1(1'b0),
    .A(1'b1),
    .B(1'b0),
    .C(1'b0),
