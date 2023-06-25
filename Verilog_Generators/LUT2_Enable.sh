@@ -28,22 +28,14 @@ module lut_2_ro(
 );
 
 (*keep*)wire connect;
-wire test;
 
 assign out = connect;
 
-mux2x0 enable (
-   .S(en),
-   .A(1'b0),
-   .B(connect),
-   .Q(test),
-);
-
 LUT2 #(
-   .INIT(4'b0001)
+   .INIT(4'b0100)
 ) ro (
-   .I0(test),
-   .I1(1'b0),
+   .I0(connect),
+   .I1(en),
    .O(connect)
 );
 endmodule

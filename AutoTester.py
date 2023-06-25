@@ -309,18 +309,20 @@ if __name__ == '__main__':
    if not flashBoard(ser):
       printError(ERROR_IN_FLASHING_BOARD)
    ### Build the next program in the background ###
-   makeThread = threading.Thread(target=generateAndCompile, 
-                                 args=(args.generator, int(args.circuitStart) + int(args.increment)), 
-                                 daemon=True)
-   makeThread.start()
+   if (int(args.circuitStart) + int(args.increment) < int(args.circuitCount)):
+      makeThread = threading.Thread(target=generateAndCompile, 
+                                    args=(args.generator, int(args.circuitStart) + int(args.increment)), 
+                                    daemon=True)
+      makeThread.start()
    # Wait for the FPGA program to start
    time.sleep(QT_RESET_TIME)
    ### Test the currently flashed program ###
    if not runPowerTests(ser, args.testLength, args.delay, args.generator, args.circuitStart):
       printError(ERROR_IN_POWER_TEST)
    
-   try: 
-      mainLoop(args, makeThread)
-   except Exception as e:
-      print("EXCEPTION: {}".format(e))
-      exit(-1)
+   if (int(args.circuitStart) + int(args.increment) < int(args.circuitCount)):
+      try: 
+         mainLoop(args, makeThread)
+      except Exception as e:
+         print("EXCEPTION: {}".format(e))
+         exit(-1)
